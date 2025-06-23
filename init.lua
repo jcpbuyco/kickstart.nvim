@@ -100,6 +100,7 @@ vim.g.have_nerd_font = false
 
 -- Make line numbers default
 vim.o.number = true
+vim.o.relativenumber = true
 -- You can also add relative line numbers, to help with jumping.
 --  Experiment for yourself to see if you like it!
 -- vim.o.relativenumber = true
@@ -247,7 +248,12 @@ rtp:prepend(lazypath)
 -- NOTE: Here is where you install your plugins.
 require('lazy').setup({
   -- NOTE: Plugins can be added with a link (or for a github repo: 'owner/repo' link).
-  'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
+  {
+    'NMAC427/guess-indent.nvim', -- Detect tabstop and shiftwidth automatically
+    config = function()
+      require('guess-indent').setup {}
+    end,
+  },
 
   -- NOTE: Plugins can also be added by using a table,
   -- with the first argument being the link and the following
@@ -698,6 +704,7 @@ require('lazy').setup({
             },
           },
         },
+        ts_ls = {},
       }
 
       -- Ensure the servers and tools above are installed
@@ -716,6 +723,9 @@ require('lazy').setup({
       local ensure_installed = vim.tbl_keys(servers or {})
       vim.list_extend(ensure_installed, {
         'stylua', -- Used to format Lua code
+        'prettierd',
+        'prettier',
+        { 'eslint_d', version = '13.1.2' },
       })
       require('mason-tool-installer').setup { ensure_installed = ensure_installed }
 
@@ -770,11 +780,58 @@ require('lazy').setup({
         lua = { 'stylua' },
         -- Conform can also run multiple formatters sequentially
         -- python = { "isort", "black" },
-        --
         -- You can use 'stop_after_first' to run the first available formatter from the list
-        -- javascript = { "prettierd", "prettier", stop_after_first = true },
+        javascript = { 'prettierd', 'prettier', stop_after_first = true },
+        typescript = { 'prettierd', 'prettier', stop_after_first = true },
+        javascriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        typescriptreact = { 'prettierd', 'prettier', stop_after_first = true },
+        json = { 'prettierd', 'prettier', stop_after_first = true },
+        css = { 'prettierd', 'prettier', stop_after_first = true },
+        html = { 'prettierd', 'prettier', stop_after_first = true },
       },
     },
+  },
+  { -- Linting
+    'mfussenegger/nvim-lint',
+    event = {
+      'BufReadPre',
+      'BufNewFile',
+    },
+    config = function()
+      local lint = require 'lint'
+      local lint_augroup = vim.api.nvim_create_augroup('lint', { clear = true })
+      local eslint = lint.linters.eslint_d
+
+      lint.linters_by_ft = {
+        javascript = { 'eslint_d' },
+        typescript = { 'eslint_d' },
+        javascriptreact = { 'eslint_d' },
+        typescriptreact = { 'eslint_d' },
+        svelte = { 'eslint_d' },
+      }
+
+      eslint.args = {
+        '--no-warn-ignored', -- <-- this is the key argument
+        '--format',
+        'json',
+        '--stdin',
+        '--stdin-filename',
+        function()
+          return vim.api.nvim_buf_get_name(0)
+        end,
+      }
+
+      vim.api.nvim_create_autocmd({ 'BufEnter', 'BufWritePost', 'InsertLeave' }, {
+        group = lint_augroup,
+        callback = function()
+          lint.try_lint()
+        end,
+      })
+
+      vim.keymap.set('n', '<leader>l', function()
+        lint.try_lint()
+      end, { desc = 'Trigger linting for current file' })
+    end,
   },
 
   { -- Autocompletion
